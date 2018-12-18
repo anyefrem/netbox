@@ -1,0 +1,4 @@
+add user * user1
+add password * passw0rd
+add method * telnet
+add noenable * {1}

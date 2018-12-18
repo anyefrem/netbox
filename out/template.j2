@@ -1,0 +1,13 @@
+{% for intf in interfaces %}
+interface {{ intf.name }}
+{% if intf.desc|length > 0 %}
+ description {{ intf.desc}}
+{% endif %}
+{% if intf.vlans %}
+ switchport trunk allowed vlan {{ intf.vlans|join(',')}}
+{% endif %}
+{% if intf.native_vlan %}
+ switchport trunk native vlan {{ intf.native_vlan }}
+{% endif %}
+!
+{% endfor %}

@@ -1,0 +1,15 @@
+netbox:
+  api: http://netbox.localdomain/api
+  token: 
+  url:
+    devices: dcim/devices
+    interfaces: dcim/interfaces
+  static_intf_desc:
+    999999999: 'Foo int desc'
+napalm:
+  default:
+    driver: ios
+    username: 
+    password: 
+telnet:
+  - rtr1
