@@ -108,7 +108,7 @@ def load_cfg_with_clogin(clogin_device):
 
 		clogin_device_cfg = './out/{0}.cfg'.format(clogin_device)
 
-		''' Add 'conf t' on the top and 'wr' on the bottom of config file '''
+		# Add 'conf t' on the top and 'wr' on the bottom of config file
 		with open(clogin_device_cfg, 'r') as original:
 			data = original.read()
 		if data.split('\n')[0] != 'conf t':
@@ -195,15 +195,15 @@ def netbox_update_device_cfg(device=None):
 			check_intf_tag = interface.get('tags', None)
 			vlan_list = list()
 			if interface['device']['id'] == NETBOX_DEVICE_ID:
-				''' Pickup connected interface '''
+				# Pickup connected interface
 				if interface['is_connected']:
 					# print(interface['id'])
-					''' Pickup interface with 802.1Q Mode: Tagged '''
+					# Pickup interface with 802.1Q Mode: Tagged
 					if interface.get('mode', None):
 						if interface['mode']['value'] == 200:
 							if interface.get('untagged_vlan', None):
-								''' Add native vlan to the vlan list and
-								set 'native_vlan' in case when native vlan id is not '1' '''
+								# Add native vlan to the vlan list and
+								# set 'native_vlan' in case when native vlan id is not '1'
 								vlan_list.append(interface['untagged_vlan']['vid'])
 								if interface['untagged_vlan']['vid'] != 1:
 									native_vlan = interface['untagged_vlan']['vid']
@@ -217,17 +217,17 @@ def netbox_update_device_cfg(device=None):
 							native_vlan = False
 					else:
 						native_vlan = False
-					''' Populate list of interfaces '''
+					# Populate list of interfaces
 					intf_list.append({
 						'name': interface['name'],
 						'desc': interface['description'],
 						'vlans': vlan_list,
 						'native_vlan': native_vlan
 						})
-				''' Pickup interfaces tagged with 'upd_on_dev' and 'gw' tags.
-				N.B. Tag 'upd_on_dev' is when an interface's description is not being
-				automatically updated in Netbox (manually binded),
-				but is being replicated from Netbox to a device'''
+				# Pickup interfaces tagged with 'upd_on_dev' and 'gw' tags.
+				# N.B. Tag 'upd_on_dev' is when an interface's description is not being
+				# automatically updated in Netbox (manually binded),
+				# but is being replicated from Netbox to a device
 				elif ('upd_on_dev' in check_intf_tag) or ('gw' in check_intf_tag):
 					intf_list.append({
 						'name': interface['name'],
@@ -238,7 +238,7 @@ def netbox_update_device_cfg(device=None):
 
 		config_dict['interfaces'] = intf_list
 		
-		''' Load config on device '''
+		# Load config on device
 		# pprint(config_dict)
 		# sys.exit(1)
 		generated_config = generate_cfg_from_template('./out/template.j2',config_dict)
@@ -276,7 +276,7 @@ def netbox_update_db(device=None):
 			cur_desc = interface['description']
 			data_to_mod = dict()
 			if interface['device']['id'] == NETBOX_DEVICE_ID:
-				''' Pickup connected interfaces '''
+				# Pickup connected interfaces
 				if interface['is_connected']:
 					static_desc_dict = YAML_PARAMS['netbox']['static_intf_desc']
 					static_desc = static_desc_dict.get(interface['id'], None)
@@ -298,10 +298,10 @@ def netbox_update_db(device=None):
 					else:
 						print('Nothing to change for interface {0} (id: {1}, exit: 1)'.format(interface['name'], interface['id']))
 						continue
-				''' Pickup interfaces wint 802.1Q Mode: Access '''
+				# Pickup interfaces wint 802.1Q Mode: Access
 				elif interface.get('mode', None):
 					if (interface['mode']['value'] == 100) and (interface.get('tags', None)):
-						''' ..and tagged 'gw' '''
+						# ..and tagged 'gw'
 						if 'gw' in interface['tags']:
 							if interface.get('untagged_vlan', None):
 								new_desc = 'Gateway: VLAN {0}'.format(interface['untagged_vlan']['vid'])
