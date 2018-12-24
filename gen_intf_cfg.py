@@ -6,11 +6,16 @@ import yaml
 import requests
 import argparse
 from pprint import pprint
-from napalm import get_network_driver
 # Local functions.py
 from functions import yes_or_no
 from functions import generate_cfg_from_template
 from functions import load_cfg_with_clogin
+from functions import load_cfg_with_napalm
+from functions import netbox_get_device_id
+from functions import netbox_get_devices
+from functions import netbox_get_interfaces
+from functions import netbox_get_sites
+from functions import netbox_modify_interface
 
 
 if os.path.exists('./config.yml'):
@@ -25,6 +30,7 @@ NETBOX_API = YAML_PARAMS['netbox']['api']
 NETBOX_TOKEN = YAML_PARAMS['netbox']['token']
 NETBOX_DEVICES = YAML_PARAMS['netbox']['url']['devices']
 NETBOX_INTERFACES = YAML_PARAMS['netbox']['url']['interfaces']
+NETBOX_SITES = YAML_PARAMS['netbox']['url']['sites']
 
 
 def get_cmdline():
@@ -42,133 +48,7 @@ def get_cmdline():
 	return arguments
 
 
-def load_cfg_with_napalm(napalm_device):
-	try:
-		if not napalm_device:
-			raise Exception('No device specified!')
-
-		check_device = YAML_PARAMS['napalm'].get(napalm_device, None)
-
-		if check_device:
-			napalm_driver = YAML_PARAMS['napalm'][napalm_device]['driver']
-			napalm_username = YAML_PARAMS['napalm'][napalm_device]['username']
-			napalm_password = YAML_PARAMS['napalm'][napalm_device]['password']
-		else:
-			napalm_driver = YAML_PARAMS['napalm']['default']['driver']
-			napalm_username = YAML_PARAMS['napalm']['default']['username']
-			napalm_password = YAML_PARAMS['napalm']['default']['password']
-
-		driver = get_network_driver(napalm_driver)
-		device = driver(napalm_device, napalm_username, napalm_password)
-		device.open()
-		device.load_merge_candidate(filename='./out/{0}.cfg'.format(napalm_device))
-		diffs = device.compare_config()
-
-		print('Diff by NAPALM:')
-		print('*****')
-		if diffs:
-			print(diffs)
-			print('*****')
-		else:
-			print('Empty!')
-			print('*****')
-			return True
-		if yes_or_no('ARE YOU STILL SURE?'):
-			 device.commit_config()
-			 return True
-		else:
-			return False
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_get_device_id(device=None):
-	try:
-		if not device:
-			raise Exception('No device specified!')
-
-		r = requests.get(url='{0}/{1}/?name={2}'.format(NETBOX_API, NETBOX_DEVICES, device),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-		r.close()
-		data = r.json()
-
-		if data['results']:
-			device_id = data['results'][0]['id']
-			print('Found {0} id: {1}\n'.format(device, device_id))
-			return device_id
-		else:
-			raise Exception('{0} not found in the netbox!'.format(device))
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_get_devices(site=None):
-	try:
-		if not site:
-			raise Exception('No site specified!')
-
-		r = requests.get(url='{0}/{1}'.format(NETBOX_API, NETBOX_DEVICES),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-		r.close()
-		data = r.json()
-
-		if data['results']:
-			device_list = list()
-			for device in data['results']:
-				if device.get('site', None):
-					if device['site']['name'].lower() == site:
-						device_list.append(device['name'])
-			return device_list
-		else:
-			raise Exception('{0} not found in the netbox!'.format(site))
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_get_interfaces():
-	try:
-		r = requests.get(url='{0}/{1}/?limit=0'.format(NETBOX_API, NETBOX_INTERFACES),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-		r.close()
-		return r.json()
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_modify_interface(intf_id=None, data=None):
-	try:
-		if (not intf_id) or (not data):
-			raise Exception("No data is provided!")
-
-		r = requests.patch(url='{0}/{1}/{2}/'.format(NETBOX_API, NETBOX_INTERFACES, intf_id),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)}, data=data)
-		r.close()
-		print('Operation status code: {0}'.format(r.status_code))
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_update_device_cfg(devices=None):
+def update_device_cfg(devices=None):
 	try:
 		if not devices:
 			raise Exception('No device specified!')
@@ -253,7 +133,7 @@ def netbox_update_device_cfg(devices=None):
 		sys.exit(1)
 
 
-def netbox_update_db(device=None):
+def update_netbox_db(device=None):
 	try:
 		if not device:
 			raise Exception('No device specified!')
@@ -332,12 +212,15 @@ def main():
 		if ARGS.upd_dev:
 			dev_list = list()
 			dev_list.append(ARGS.upd_dev)
-			netbox_update_device_cfg(dev_list)
+			update_device_cfg(dev_list)
 		elif ARGS.upd_dev_site:
-			dev_list = netbox_get_devices(ARGS.upd_dev_site)
-			netbox_update_device_cfg(dev_list)
+			if ARGS.upd_dev_site.lower() in netbox_get_sites():
+				dev_list = netbox_get_devices(ARGS.upd_dev_site)
+				update_device_cfg(dev_list)
+			else:
+				raise Exception('Site \'{}\' not found!'.format(ARGS.upd_dev_site))
 		elif ARGS.upd_dev_db:
-			netbox_update_db(ARGS.upd_dev_db)
+			update_netbox_db(ARGS.upd_dev_db)
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(

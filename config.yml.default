@@ -4,6 +4,7 @@ netbox:
   url:
     devices: dcim/devices
     interfaces: dcim/interfaces
+    sites: dcim/sites
   static_intf_desc:
     999999999: 'Foo int desc'
 napalm:
