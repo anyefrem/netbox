@@ -2,13 +2,15 @@
 
 import sys
 import os
-import subprocess
 import yaml
 import requests
 import argparse
 from pprint import pprint
-from jinja2 import Environment, FileSystemLoader
 from napalm import get_network_driver
+# Local functions.py
+from functions import yes_or_no
+from functions import generate_cfg_from_template
+from functions import load_cfg_with_clogin
 
 
 if os.path.exists('./config.yml'):
@@ -25,36 +27,19 @@ NETBOX_DEVICES = YAML_PARAMS['netbox']['url']['devices']
 NETBOX_INTERFACES = YAML_PARAMS['netbox']['url']['interfaces']
 
 
-def yes_or_no(question):
-    while "the answer is invalid!":
-        reply = str(input(question+' (y/n): ')).lower().strip()
-        if reply[:1].lower() == 'y':
-            return True
-        if reply[:1].lower() == 'n':
-            return False
-
-
 def get_cmdline():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-d', dest='device', help='update interface descriptions on a device', required=False, action='store_true')
-	parser.add_argument('-u', dest='update', help='update interface descriptions in the netbox', required=False, action='store_true')
-	parser.add_argument('-n', type=str, dest='name', help='name of a device (the same as in the netbox)', required=True)
+	parser.add_argument('-i1', dest='upd_dev', type=str,
+							help='update interface descriptions on a single device',
+							required=False)
+	parser.add_argument('-i2', dest='upd_dev_site', type=str,
+							help='update interface descriptions on every device across a whole site',
+							required=False)
+	parser.add_argument('-i3', dest='upd_dev_db', type=str,
+							help='update interface descriptions of a single device in netbox',
+							required=False)
 	arguments = parser.parse_args()
 	return arguments
-
-
-def generate_cfg_from_template(tpl_file, data_dict, trim_blocks_flag=True, lstrip_blocks_flag=False):
-	try:
-		tpl_dir = os.path.dirname(tpl_file)
-		env = Environment(loader=FileSystemLoader(tpl_dir), trim_blocks=trim_blocks_flag, lstrip_blocks=lstrip_blocks_flag)
-		template = env.get_template(os.path.basename(tpl_file))
-		return template.render(data_dict)
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
 
 
 def load_cfg_with_napalm(napalm_device):
@@ -101,29 +86,6 @@ def load_cfg_with_napalm(napalm_device):
 		sys.exit(1)
 
 
-def load_cfg_with_clogin(clogin_device):
-	try:
-		if not clogin_device:
-			raise Exception('No device specified!')
-
-		clogin_device_cfg = './out/{0}.cfg'.format(clogin_device)
-
-		# Add 'conf t' on the top and 'wr' on the bottom of config file
-		with open(clogin_device_cfg, 'r') as original:
-			data = original.read()
-		if data.split('\n')[0] != 'conf t':
-			with open(clogin_device_cfg, 'w') as modified:
-				modified.write('conf t\n' + '!\n' + data + '\nwr')
-
-		sp = subprocess.check_output("./clogin -x {0} {1}".format(clogin_device_cfg, clogin_device), shell=True)
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
 def netbox_get_device_id(device=None):
 	try:
 		if not device:
@@ -140,6 +102,33 @@ def netbox_get_device_id(device=None):
 			return device_id
 		else:
 			raise Exception('{0} not found in the netbox!'.format(device))
+
+	except Exception as e:
+		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
+			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
+		print(msg)
+		sys.exit(1)
+
+
+def netbox_get_devices(site=None):
+	try:
+		if not site:
+			raise Exception('No site specified!')
+
+		r = requests.get(url='{0}/{1}'.format(NETBOX_API, NETBOX_DEVICES),
+			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
+		r.close()
+		data = r.json()
+
+		if data['results']:
+			device_list = list()
+			for device in data['results']:
+				if device.get('site', None):
+					if device['site']['name'].lower() == site:
+						device_list.append(device['name'])
+			return device_list
+		else:
+			raise Exception('{0} not found in the netbox!'.format(site))
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
@@ -179,82 +168,83 @@ def netbox_modify_interface(intf_id=None, data=None):
 		sys.exit(1)
 
 
-def netbox_update_device_cfg(device=None):
+def netbox_update_device_cfg(devices=None):
 	try:
-		if not device:
+		if not devices:
 			raise Exception('No device specified!')
 
-		NETBOX_DEVICE_ID = netbox_get_device_id(device)
+		for device in devices:
+			NETBOX_DEVICE_ID = netbox_get_device_id(device)
 
-		data = netbox_get_interfaces()
+			data = netbox_get_interfaces()
 
-		config_dict = dict()
-		intf_list = list()
-		
-		for interface in data['results']:
-			check_intf_tag = interface.get('tags', None)
-			vlan_list = list()
-			if interface['device']['id'] == NETBOX_DEVICE_ID:
-				# Pickup connected interface
-				if interface['is_connected']:
-					# print(interface['id'])
-					# Pickup interface with 802.1Q Mode: Tagged
-					if interface.get('mode', None):
-						if interface['mode']['value'] == 200:
-							if interface.get('untagged_vlan', None):
-								# Add native vlan to the vlan list and
-								# set 'native_vlan' in case when native vlan id is not '1'
-								vlan_list.append(interface['untagged_vlan']['vid'])
-								if interface['untagged_vlan']['vid'] != 1:
-									native_vlan = interface['untagged_vlan']['vid']
+			config_dict = dict()
+			intf_list = list()
+
+			for interface in data['results']:
+				check_intf_tag = interface.get('tags', None)
+				vlan_list = list()
+				if interface['device']['id'] == NETBOX_DEVICE_ID:
+					# Pickup connected interface
+					if interface['is_connected']:
+						# print(interface['id'])
+						# Pickup interface with 802.1Q Mode: Tagged
+						if interface.get('mode', None):
+							if interface['mode']['value'] == 200:
+								if interface.get('untagged_vlan', None):
+									# Add native vlan to the vlan list and
+									# set 'native_vlan' in case when native vlan id is not '1'
+									vlan_list.append(interface['untagged_vlan']['vid'])
+									if interface['untagged_vlan']['vid'] != 1:
+										native_vlan = interface['untagged_vlan']['vid']
+									else:
+										native_vlan = False
 								else:
 									native_vlan = False
+								for vlan in interface['tagged_vlans']:
+									vlan_list.append(vlan['vid'])
 							else:
 								native_vlan = False
-							for vlan in interface['tagged_vlans']:
-								vlan_list.append(vlan['vid'])
 						else:
 							native_vlan = False
-					else:
-						native_vlan = False
-					# Populate list of interfaces
-					intf_list.append({
-						'name': interface['name'],
-						'desc': interface['description'],
-						'vlans': vlan_list,
-						'native_vlan': native_vlan
-						})
-				# Pickup interfaces tagged with 'upd_on_dev' and 'gw' tags.
-				# N.B. Tag 'upd_on_dev' is when an interface's description is not being
-				# automatically updated in Netbox (manually binded),
-				# but is being replicated from Netbox to a device
-				elif ('upd_on_dev' in check_intf_tag) or ('gw' in check_intf_tag):
-					intf_list.append({
-						'name': interface['name'],
-						'desc': interface['description'],
-						'vlans': vlan_list,
-						'native_vlan': False
-						})
+						# Populate list of interfaces
+						intf_list.append({
+							'name': interface['name'],
+							'desc': interface['description'],
+							'vlans': vlan_list,
+							'native_vlan': native_vlan
+							})
+					# Pickup interfaces tagged with 'upd_on_dev' and 'gw' tags.
+					# N.B. Tag 'upd_on_dev' is when an interface's description is not being
+					# automatically updated in Netbox (manually binded),
+					# but is being replicated from Netbox to a device
+					elif ('upd_on_dev' in check_intf_tag) or ('gw' in check_intf_tag):
+						intf_list.append({
+							'name': interface['name'],
+							'desc': interface['description'],
+							'vlans': vlan_list,
+							'native_vlan': False
+							})
 
-		config_dict['interfaces'] = intf_list
-		
-		# Load config on device
-		# pprint(config_dict)
-		# sys.exit(1)
-		generated_config = generate_cfg_from_template('./out/template.j2',config_dict)
-		print('{0} is going to be burned by the following lines:'.format(device))
-		print('*****')
-		print(generated_config)
-		print('*****')
-		
-		if yes_or_no('ARE YOU SURE?'):
-			with open('./out/{0}.cfg'.format(device.lower()), 'w') as file:
-				file.write(generated_config)
-			print('Connecting to {0}...'.format(device))
-			if device.lower() not in YAML_PARAMS['telnet']:
-				load_cfg_with_napalm(device.lower())
-			else:				
-				load_cfg_with_clogin(device.lower())
+			config_dict['interfaces'] = intf_list
+
+			# Load config on device
+			# pprint(config_dict)
+			# sys.exit(1)
+			generated_config = generate_cfg_from_template('./out/template.j2',config_dict)
+			print('{0} is going to be burned by the following lines:'.format(device))
+			print('*****')
+			print(generated_config)
+			print('*****')
+
+			if yes_or_no('ARE YOU SURE?'):
+				with open('./out/{0}.cfg'.format(device.lower()), 'w') as file:
+					file.write(generated_config)
+				print('Connecting to {0}...'.format(device))
+				if device.lower() not in YAML_PARAMS['telnet']:
+					load_cfg_with_napalm(device.lower())
+				else:
+					load_cfg_with_clogin(device.lower())
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
@@ -339,14 +329,15 @@ def netbox_update_db(device=None):
 def main():
 	try:
 		ARGS = get_cmdline()
-		if (not ARGS.device) and (not ARGS.update):
-			raise Exception('Please use either -d or -u! (neither is used)')
-		elif (ARGS.device and ARGS.update):
-			raise Exception('Please use either -d or -u! (both is used)')
-		elif ARGS.device:
-			netbox_update_device_cfg(ARGS.name)
-		elif ARGS.update:
-			netbox_update_db(ARGS.name)
+		if ARGS.upd_dev:
+			dev_list = list()
+			dev_list.append(ARGS.upd_dev)
+			netbox_update_device_cfg(dev_list)
+		elif ARGS.upd_dev_site:
+			dev_list = netbox_get_devices(ARGS.upd_dev_site)
+			netbox_update_device_cfg(dev_list)
+		elif ARGS.upd_dev_db:
+			netbox_update_db(ARGS.upd_dev_db)
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
