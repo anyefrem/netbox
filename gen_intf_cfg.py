@@ -62,8 +62,22 @@ def update_device_cfg(devices=None):
 			intf_list = list()
 
 			for interface in data['results']:
-				check_intf_tag = interface.get('tags', None)
+				check_intf_tags = interface.get('tags', None)
+				# MTU, MSS
+				check_intf_mtu = interface.get('mtu', None)
+				if check_intf_mtu:
+					mtu = check_intf_mtu
+					mss = int(mtu)-40
+				else:
+					mtu = False
+					mss = False
+				# Result dictionary defaults
+				intf_tags = ['gw', 'isp_l2', 'isp_l3', 'upd_on_dev']
 				vlan_list = list()
+				native_vlan = False
+				isp_l2_flag = False
+				isp_l3_flag = False
+				populate_flag = False
 				if interface['device']['id'] == NETBOX_DEVICE_ID:
 					# Pickup connected interface
 					if interface['is_connected']:
@@ -77,34 +91,33 @@ def update_device_cfg(devices=None):
 									vlan_list.append(interface['untagged_vlan']['vid'])
 									if interface['untagged_vlan']['vid'] != 1:
 										native_vlan = interface['untagged_vlan']['vid']
-									else:
-										native_vlan = False
-								else:
-									native_vlan = False
 								for vlan in interface['tagged_vlans']:
 									vlan_list.append(vlan['vid'])
-							else:
-								native_vlan = False
-						else:
-							native_vlan = False
-						# Populate list of interfaces
-						intf_list.append({
-							'name': interface['name'],
-							'desc': interface['description'],
-							'vlans': vlan_list,
-							'native_vlan': native_vlan
-							})
-					# Pickup interfaces tagged with 'upd_on_dev' and 'gw' tags.
+						populate_flag = True
+					# Pickup interfaces tagged with predefined tags (intf_tags).
 					# N.B. Tag 'upd_on_dev' is when an interface's description is not being
 					# automatically updated in Netbox (manually binded),
 					# but is being replicated from Netbox to a device
-					elif ('upd_on_dev' in check_intf_tag) or ('gw' in check_intf_tag):
+					elif check_intf_tags:
+						for item in intf_tags:
+							if item in check_intf_tags:
+								if item == 'isp_l2':
+									isp_l2_flag = True
+								elif item == 'isp_l3':
+									isp_l3_flag = True
+								populate_flag = True
+					# Populate resulting list of interfaces
+					if populate_flag:
 						intf_list.append({
-							'name': interface['name'],
-							'desc': interface['description'],
-							'vlans': vlan_list,
-							'native_vlan': False
-							})
+						'name': interface['name'],
+						'desc': interface['description'],
+						'vlans': vlan_list,
+						'native_vlan': native_vlan,
+						'isp_l2_flag': isp_l2_flag,
+						'isp_l3_flag': isp_l3_flag,
+						'mtu': mtu,
+						'mss': mss
+						})
 
 			config_dict['interfaces'] = intf_list
 
