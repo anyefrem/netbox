@@ -9,5 +9,19 @@ interface {{ intf.name }}
 {% if intf.native_vlan %}
  switchport trunk native vlan {{ intf.native_vlan }}
 {% endif %}
+{% if intf.mtu %}
+ ip mtu {{ intf.mtu }}
+ ip tcp adjust-mss {{ intf.mss }}
+{% endif %}
+{% if intf.isp_l2_flag %}
+ no cdp enable
+ no lldp transmit
+ no lldp receive
+{% endif %}
+{% if intf.isp_l3_flag %}
+ no ip redirects
+ no ip unreachables
+ no ip proxy-arp
+{% endif %}
 !
 {% endfor %}
