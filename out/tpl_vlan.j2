@@ -1,0 +1,12 @@
+{% if vlans_add %}
+{% for vlan in vlans_add %}
+vlan {{ vlan.vid }}
+ name {{ vlan.name }}
+!
+{% endfor %}
+{% endif %}
+{% if vlans_del %}
+{% for vlan in vlans_del %}
+no vlan {{ vlan.vid }}
+{% endfor %}
+{% endif %}
