@@ -123,21 +123,21 @@ def load_cfg(dst_device, src_config_dict, j2_tpl):
 			raise Exception('No config dict provided!')
 		elif not j2_tpl:
 			raise Exception('No j2 tpl provided!')
-
+		
+		dst_device_ip = netbox_get_device_ip(dst_device)
 		generated_config = generate_cfg_from_template(j2_tpl, src_config_dict)
 		print('{0} is going to be burned by the following lines:'.format(dst_device))
 		print('*****')
 		print(generated_config)
 		print('*****')
-
 		if yes_or_no('ARE YOU SURE?'):
 			with open('./out/{0}.cfg'.format(dst_device.lower()), 'w') as file:
 				file.write(generated_config)
 			print('Connecting to {0}...'.format(dst_device))
 			if dst_device.lower() not in YAML_PARAMS['telnet']:
-				load_cfg_with_napalm(dst_device.lower())
+				load_cfg_with_napalm(dst_device_ip)
 			else:
-				load_cfg_with_clogin(dst_device.lower())
+				load_cfg_with_clogin(dst_device_ip)
 			print('[ok] Configuration loaded successfully!')
 			return True
 		else:
@@ -151,7 +151,7 @@ def load_cfg(dst_device, src_config_dict, j2_tpl):
 		sys.exit(1)
 
 
-def netbox_get_device_id(netbox_device=None):
+def netbox_get_device_id(netbox_device=None, silent=False):
 	try:
 		if not netbox_device:
 			raise Exception('No device specified!')
@@ -163,7 +163,8 @@ def netbox_get_device_id(netbox_device=None):
 
 		if data['results']:
 			netbox_device_id = data['results'][0]['id']
-			print('Found {0} id: {1}\n'.format(netbox_device, netbox_device_id))
+			if not silent:
+				print('Found {0} id: {1}\n'.format(netbox_device, netbox_device_id))
 			return netbox_device_id
 		else:
 			raise Exception('{0} not found in the netbox!'.format(netbox_device))
@@ -188,6 +189,55 @@ def netbox_get_device_site_id(netbox_device=None):
 		if data:
 			netbox_device_site_id = data['site']['id']
 			return netbox_device_site_id
+		else:
+			raise Exception('{0} not found in the netbox!'.format(netbox_device))
+
+	except Exception as e:
+		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
+			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
+		print(msg)
+		sys.exit(1)
+
+
+def netbox_get_device_ip(netbox_device=None):
+	try:
+		if not netbox_device:
+			raise Exception('No device specified!')
+
+		r = requests.get(url='{0}/{1}/{2}'.format(NETBOX_API, NETBOX_DEVICES, netbox_get_device_id(netbox_device, silent=True)),
+			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
+		r.close()
+		data = r.json()
+
+		if data:
+			netbox_device_ip = data['primary_ip4']['address']
+			return netbox_device_ip.split('/')[0]
+		else:
+			raise Exception('{0} not found in the netbox!'.format(netbox_device))
+
+	except Exception as e:
+		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
+			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
+		print(msg)
+		sys.exit(1)
+
+
+def netbox_check_if_switch(netbox_device=None):
+	try:
+		if not netbox_device:
+			raise Exception('No device specified!')
+
+		r = requests.get(url='{0}/{1}/{2}'.format(NETBOX_API, NETBOX_DEVICES, netbox_get_device_id(netbox_device, silent=True)),
+			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
+		r.close()
+		data = r.json()
+
+		if data:
+			netbox_device_role = data['device_role']['slug']
+			if 'switch' in netbox_device_role:
+				return True
+			else:
+				return False
 		else:
 			raise Exception('{0} not found in the netbox!'.format(netbox_device))
 

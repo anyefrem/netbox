@@ -31,14 +31,17 @@ def get_cmdline():
 	parser.add_argument('-i1', dest='upd_dev', type=str,
 							help='update interface descriptions on a single device',
 							required=False)
-	parser.add_argument('-i2', dest='upd_dev_site', type=str,
-							help='update interface descriptions on every device across a whole site',
+	parser.add_argument('-i2', dest='upd_site_dev', type=str,
+							help='update interface descriptions across a whole site',
 							required=False)
 	parser.add_argument('-i3', dest='upd_dev_db', type=str,
 							help='update interface descriptions of a single device in netbox',
 							required=False)
 	parser.add_argument('-v1', dest='upd_dev_vlans', type=str,
 							help='update vlans on a single device',
+							required=False)
+	parser.add_argument('-v3', dest='upd_site_vlans', type=str,
+							help='update vlans across a whole site',
 							required=False)
 	arguments = parser.parse_args()
 	return arguments
@@ -139,6 +142,9 @@ def update_device_vlans(devices=None):
 		config_dict = dict()
 
 		for device in devices:
+			if not netbox_check_if_switch(device):
+				print('Skipping {0}'.format(device))
+				continue
 			NETBOX_DEVICE_SITE_ID = netbox_get_device_site_id(netbox_device=device)
 			vlans = netbox_get_vlans(netbox_site_id=NETBOX_DEVICE_SITE_ID)
 			for vlan in vlans:
@@ -275,12 +281,18 @@ def main():
 		elif ARGS.upd_dev_vlans:
 			dev_list.append(ARGS.upd_dev_vlans)
 			update_device_vlans(devices=dev_list)
-		elif ARGS.upd_dev_site:
-			if ARGS.upd_dev_site.lower() in netbox_get_sites():
-				dev_list = netbox_get_devices(netbox_site=ARGS.upd_dev_site)
+		elif ARGS.upd_site_dev:
+			if ARGS.upd_site_dev.lower() in netbox_get_sites():
+				dev_list = netbox_get_devices(netbox_site=ARGS.upd_site_dev)
 				update_device_cfg(devices=dev_list)
 			else:
-				raise Exception('Site \'{}\' not found!'.format(ARGS.upd_dev_site))
+				raise Exception('Site \'{}\' not found!'.format(ARGS.upd_site_dev))
+		elif ARGS.upd_site_vlans:
+			if ARGS.upd_site_vlans.lower() in netbox_get_sites():
+				dev_list = netbox_get_devices(netbox_site=ARGS.upd_site_vlans)
+				update_device_vlans(devices=dev_list)
+			else:
+				raise Exception('Site \'{}\' not found!'.format(ARGS.upd_site_dev))
 		elif ARGS.upd_dev_db:
 			update_netbox_db(device=ARGS.upd_dev_db)
 
