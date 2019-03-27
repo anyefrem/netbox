@@ -37,7 +37,8 @@ def yes_or_no(question):
 def generate_cfg_from_template(tpl_file, data_dict, trim_blocks_flag=True, lstrip_blocks_flag=False):
 	try:
 		tpl_dir = os.path.dirname(tpl_file)
-		env = Environment(loader=FileSystemLoader(tpl_dir), trim_blocks=trim_blocks_flag, lstrip_blocks=lstrip_blocks_flag)
+		env = Environment(loader=FileSystemLoader(tpl_dir), trim_blocks=trim_blocks_flag,
+			lstrip_blocks=lstrip_blocks_flag)
 		template = env.get_template(os.path.basename(tpl_file))
 		return template.render(data_dict)
 
@@ -48,21 +49,22 @@ def generate_cfg_from_template(tpl_file, data_dict, trim_blocks_flag=True, lstri
 		sys.exit(1)
 
 
-def load_cfg_with_clogin(clogin_device):
+def load_cfg_with_clogin(clogin_device, clogin_device_ip):
 	try:
 		if not clogin_device:
 			raise Exception('No device specified!')
 
-		clogin_device_cfg = './out/{0}.cfg'.format(clogin_device)
+		clogin_device_cfg = './out/{0}.cfg'.format(clogin_device.lower())
 
-		# Add 'conf t' on the top and 'wr' on the bottom of config file
+		# Add 'conf t' on the top and 'end + wr' on the bottom of config file
 		with open(clogin_device_cfg, 'r') as original:
 			data = original.read()
 		if data.split('\n')[0] != 'conf t':
 			with open(clogin_device_cfg, 'w') as modified:
-				modified.write('conf t\n' + '!\n' + data + '\nwr')
+				modified.write('conf t\n' + '!\n' + data + 'end\n'+ 'wr\n')
 
-		sp = subprocess.check_output("./clogin -x {0} {1}".format(clogin_device_cfg, clogin_device), shell=True)
+		sp = subprocess.check_output("./clogin -x {0} {1}".format(
+			clogin_device_cfg, clogin_device_ip), shell=True)
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
@@ -71,10 +73,12 @@ def load_cfg_with_clogin(clogin_device):
 		sys.exit(1)
 
 
-def load_cfg_with_napalm(napalm_device):
+def load_cfg_with_napalm(napalm_device, napalm_device_ip):
 	try:
 		if not napalm_device:
 			raise Exception('No device specified!')
+		elif not napalm_device_ip:
+			raise Exception('No device ip specified!')
 
 		check_device = YAML_PARAMS['napalm'].get(napalm_device, None)
 
@@ -88,9 +92,9 @@ def load_cfg_with_napalm(napalm_device):
 			napalm_password = YAML_PARAMS['napalm']['default']['password']
 
 		driver = get_network_driver(napalm_driver)
-		device = driver(napalm_device, napalm_username, napalm_password)
+		device = driver(napalm_device_ip, napalm_username, napalm_password)
 		device.open()
-		device.load_merge_candidate(filename='./out/{0}.cfg'.format(napalm_device))
+		device.load_merge_candidate(filename='./out/{0}.cfg'.format(napalm_device.lower()))
 		diffs = device.compare_config()
 
 		print('Diff by NAPALM:')
@@ -135,14 +139,21 @@ def load_cfg(dst_device, src_config_dict, j2_tpl):
 				file.write(generated_config)
 			print('Connecting to {0}...'.format(dst_device))
 			if dst_device.lower() not in YAML_PARAMS['telnet']:
-				load_cfg_with_napalm(dst_device_ip)
+				load = load_cfg_with_napalm(napalm_device=dst_device, napalm_device_ip=dst_device_ip)
+				if load:
+					print('[ok] Configuration loaded successfully!')
+					return True
+				else:
+					print('[nok] Configuration not loaded successfully!')
+					return False
 			else:
-				load_cfg_with_clogin(dst_device_ip)
-			print('[ok] Configuration loaded successfully!')
-			return True
+				# no True/False is returned by function using clogin
+				load = load_cfg_with_clogin(clogin_device=dst_device, clogin_device_ip=dst_device_ip)
+				print('[ok] Configuration loaded successfully!')
+				return True
 		else:
-			print('[nok] Configuration not loaded successfully!')
-			return False
+			print('Operation canceled!')
+			return True
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(

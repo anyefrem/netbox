@@ -137,16 +137,21 @@ def update_device_vlans(devices=None):
 		if not devices:
 			raise Exception('No device specified!')
 
-		vlans_add = list()
-		vlans_del = list()
-		config_dict = dict()
+		ok_count, sw_count = 0, 0
 
 		for device in devices:
 			if not netbox_check_if_switch(device):
 				print('Skipping {0}'.format(device))
 				continue
+			else:
+				sw_count += 1
+				vlans_add = list()
+				vlans_del = list()
+				config_dict = dict()
+
 			NETBOX_DEVICE_SITE_ID = netbox_get_device_site_id(netbox_device=device)
 			vlans = netbox_get_vlans(netbox_site_id=NETBOX_DEVICE_SITE_ID)
+
 			for vlan in vlans:
 				if vlan['action'] == 'vlan_add':
 					# 'id' - ID in netbox, 'vid' - VLAN ID
@@ -177,13 +182,15 @@ def update_device_vlans(devices=None):
 			# sys.exit(1)
 			if vlans_add or vlans_del:
 				if load_cfg(dst_device=device, src_config_dict=config_dict, j2_tpl='./out/tpl_vlan.j2'):
-					for vlan in vlans_add:
-						netbox_modify_vlan(netbox_vlan_id=vlan['id'], netbox_vlan_action='vlan_add')
-					for vlan in vlans_del:
-						netbox_modify_vlan(netbox_vlan_id=vlan['id'], netbox_vlan_action='vlan_del')
+					ok_count += 1
 			else:
 				print('No vlans need to be modified!')
 
+		if ok_count == sw_count:
+			for vlan in vlans_add:
+				netbox_modify_vlan(netbox_vlan_id=vlan['id'], netbox_vlan_action='vlan_add')
+			for vlan in vlans_del:
+				netbox_modify_vlan(netbox_vlan_id=vlan['id'], netbox_vlan_action='vlan_del')
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
