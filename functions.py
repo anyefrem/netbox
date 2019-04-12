@@ -238,7 +238,8 @@ def netbox_check_if_switch(netbox_device=None):
 		if not netbox_device:
 			raise Exception('No device specified!')
 
-		r = requests.get(url='{0}/{1}/{2}'.format(NETBOX_API, NETBOX_DEVICES, netbox_get_device_id(netbox_device, silent=True)),
+		r = requests.get(url='{0}/{1}/{2}'.format(NETBOX_API, NETBOX_DEVICES,
+			netbox_get_device_id(netbox_device, silent=True)),
 			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
 		r.close()
 		data = r.json()
