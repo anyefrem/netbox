@@ -74,8 +74,10 @@ def update_device_cfg(devices=None):
 				intf_tags = ['gw', 'isp_l2', 'isp_l3', 'upd_on_dev']
 				vlan_list = list()
 				native_vlan = False
+				access_vlan = False
 				isp_l2_flag = False
 				isp_l3_flag = False
+				switch_flag = False
 				populate_flag = False
 				if interface['device']['id'] == NETBOX_DEVICE_ID:
 					# Pickup connected interface
@@ -102,6 +104,11 @@ def update_device_cfg(devices=None):
 							if item in check_intf_tags:
 								if item == 'isp_l2':
 									isp_l2_flag = True
+									if netbox_check_if_switch(device):
+										switch_flag = True
+										if interface.get('mode', None):
+											if interface['mode']['value'] == 100:
+												access_vlan = interface['untagged_vlan']['vid']
 								elif item == 'isp_l3':
 									isp_l3_flag = True
 								populate_flag = True
@@ -112,10 +119,12 @@ def update_device_cfg(devices=None):
 						'desc': interface['description'],
 						'vlans': vlan_list,
 						'native_vlan': native_vlan,
+						'access_vlan': access_vlan,
 						'isp_l2_flag': isp_l2_flag,
 						'isp_l3_flag': isp_l3_flag,
 						'mtu': mtu,
-						'mss': mss
+						'mss': mss,
+						'switch_flag': switch_flag
 						})
 
 			config_dict['interfaces'] = intf_list

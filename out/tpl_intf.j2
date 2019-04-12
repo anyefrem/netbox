@@ -14,6 +14,12 @@ interface {{ intf.name }}
  ip tcp adjust-mss {{ intf.mss }}
 {% endif %}
 {% if intf.isp_l2_flag %}
+{% if intf.switch_flag %}
+ switchport mode access
+ switchport access vlan {{ intf.access_vlan }}
+ spanning-tree portfast
+ spanning-tree bpdufilter enable
+{%- endif %}
  no cdp enable
  no lldp transmit
  no lldp receive
