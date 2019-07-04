@@ -80,8 +80,8 @@ def update_device_cfg(devices=None):
 				switch_flag = False
 				populate_flag = False
 				if interface['device']['id'] == NETBOX_DEVICE_ID:
-					# Pickup connected interface
-					if interface['is_connected']:
+					# Pickup connected interface or LAG
+					if interface['is_connected'] or 'LAG' in interface['form_factor']['label']:
 						# print(interface['id'])
 						# Pickup interface with 802.1Q Mode: Tagged
 						if interface.get('mode', None):
