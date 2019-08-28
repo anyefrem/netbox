@@ -72,6 +72,8 @@ def update_device_cfg(devices=None):
 					mtu = False
 					mss = False
 				# Resulting dictionary defaults
+				vlan_list = list()
+				native_vlan = False
 				access_vlan = False
 				isp_l2_flag = False
 				isp_l3_flag = False

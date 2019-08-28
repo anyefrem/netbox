@@ -5,6 +5,7 @@ import subprocess
 import yaml
 import json
 import requests
+from pprint import pprint
 from jinja2 import Environment, FileSystemLoader
 from napalm import get_network_driver
 

@@ -2,10 +2,10 @@ netbox:
   api: http://netbox.localdomain/api
   token: 
   url:
-    devices: dcim/devices
-    interfaces: dcim/interfaces
-    sites: dcim/sites
-    vlans: ipam/vlans
+    devices: 'dcim/devices'
+    interfaces: 'dcim/interfaces?limit=0'
+    sites: 'dcim/sites?limit=0'
+    vlans: 'ipam/vlans?limit=0'
   static_intf_desc:
     999999999: 'Foo int desc'
 napalm:
