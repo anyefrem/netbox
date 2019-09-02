@@ -293,7 +293,7 @@ def netbox_get_vlans(netbox_site_id=None):
 		if not netbox_site_id:
 			raise Exception('No site id specified!')
 
-		r = requests.get(url='{0}/{1}'.format(NETBOX_API, NETBOX_VLANS),
+		r = requests.get(url='{0}/{1}?limit=0'.format(NETBOX_API, NETBOX_VLANS),
 			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
 		r.close()
 		data = r.json()
