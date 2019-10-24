@@ -19,7 +19,7 @@ interface {{ intf.name }}
  switchport access vlan {{ intf.access_vlan }}
  spanning-tree portfast
  spanning-tree bpdufilter enable
-{%- endif %}
+{% endif %}
  no cdp enable
  no lldp transmit
  no lldp receive

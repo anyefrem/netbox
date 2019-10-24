@@ -59,6 +59,7 @@ def update_device_cfg(devices=None):
 
 			config_dict = dict()
 			intf_list = list()
+			intf_tags = ['gw', 'isp_l2', 'isp_l3', 'upd_desc', 'upd_trunk']
 
 			for interface in data['results']:
 				check_intf_tags = interface.get('tags', None)
@@ -70,8 +71,7 @@ def update_device_cfg(devices=None):
 				else:
 					mtu = False
 					mss = False
-				# Result dictionary defaults
-				intf_tags = ['gw', 'isp_l2', 'isp_l3', 'upd_on_dev']
+				# Resulting dictionary defaults
 				vlan_list = list()
 				native_vlan = False
 				access_vlan = False
@@ -80,25 +80,18 @@ def update_device_cfg(devices=None):
 				switch_flag = False
 				populate_flag = False
 				if interface['device']['id'] == NETBOX_DEVICE_ID:
-					# Pickup connected interface
-					if interface['is_connected']:
+					# Pickup connected interface or LAG
+					if interface['is_connected'] or 'LAG' in interface['form_factor']['label']:
 						# print(interface['id'])
-						# Pickup interface with 802.1Q Mode: Tagged
-						if interface.get('mode', None):
-							if interface['mode']['value'] == 200:
-								if interface.get('untagged_vlan', None):
-									# Add native vlan to the vlan list and
-									# set 'native_vlan' in case when native vlan id is not '1'
-									vlan_list.append(interface['untagged_vlan']['vid'])
-									if interface['untagged_vlan']['vid'] != 1:
-										native_vlan = interface['untagged_vlan']['vid']
-								for vlan in interface['tagged_vlans']:
-									vlan_list.append(vlan['vid'])
+						pvl = populate_vlan_list(interface)
+						native_vlan = pvl[0]
+						vlan_list = pvl[1]
 						populate_flag = True
 					# Pickup interfaces tagged with predefined tags (intf_tags).
-					# N.B. Tag 'upd_on_dev' is when an interface's description is not being
-					# automatically updated in Netbox (manually binded),
-					# but is being replicated from Netbox to a device
+					# - 'upd_desc' is when an interface's description is manually set in Netbox,
+					# and replicated from Netbox to a device.
+					# - 'upd_trunk' is when an trunk's allowed vlans are manually set in Netbox,
+					# and replicated from Netbox to a device.
 					elif check_intf_tags:
 						for item in intf_tags:
 							if item in check_intf_tags:
@@ -111,6 +104,10 @@ def update_device_cfg(devices=None):
 												access_vlan = interface['untagged_vlan']['vid']
 								elif item == 'isp_l3':
 									isp_l3_flag = True
+								elif item == 'upd_trunk':
+									pvl = populate_vlan_list(interface)
+									native_vlan = pvl[0]
+									vlan_list = pvl[1]
 								populate_flag = True
 					# Populate resulting list of interfaces
 					if populate_flag:

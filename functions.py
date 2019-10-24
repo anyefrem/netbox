@@ -5,6 +5,7 @@ import subprocess
 import yaml
 import json
 import requests
+from pprint import pprint
 from jinja2 import Environment, FileSystemLoader
 from napalm import get_network_driver
 
@@ -292,7 +293,7 @@ def netbox_get_vlans(netbox_site_id=None):
 		if not netbox_site_id:
 			raise Exception('No site id specified!')
 
-		r = requests.get(url='{0}/{1}'.format(NETBOX_API, NETBOX_VLANS),
+		r = requests.get(url='{0}/{1}?limit=0'.format(NETBOX_API, NETBOX_VLANS),
 			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
 		r.close()
 		data = r.json()
@@ -390,6 +391,36 @@ def netbox_modify_vlan(netbox_vlan_id=None, netbox_vlan_action=None):
 
 		r.close()
 		print('NetBox DB operation status code: {0}'.format(r.status_code))
+
+	except Exception as e:
+		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
+			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
+		print(msg)
+		sys.exit(1)
+
+
+def populate_vlan_list(netbox_interface=None):
+	try:
+		if not netbox_interface:
+			raise Exception("No data provided!")
+
+		vlan_list = list()
+		native_vlan = False
+
+		# Pickup interface with 802.1Q Mode: Tagged
+		if netbox_interface.get('mode', None):
+			if netbox_interface['mode']['value'] == 200:
+				if netbox_interface.get('untagged_vlan', None):
+					# Add native vlan to the vlan list and
+					# set 'native_vlan' in case when native vlan id is not '1'
+					vlan_list.append(netbox_interface['untagged_vlan']['vid'])
+					if netbox_interface['untagged_vlan']['vid'] != 1:
+						native_vlan = netbox_interface['untagged_vlan']['vid']
+
+				for vlan in netbox_interface['tagged_vlans']:
+					vlan_list.append(vlan['vid'])
+
+		return native_vlan, vlan_list
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
