@@ -65,7 +65,7 @@ def load_cfg_with_clogin(clogin_device, clogin_device_ip):
 			with open(clogin_device_cfg, 'w') as modified:
 				modified.write('conf t\n' + '!\n' + data + 'end\n'+ 'wr\n')
 
-		sp = subprocess.check_output("./clogin -x {0} {1}".format(
+		sp = subprocess.check_output("./clogin -f ./.cloginrc -x {0} {1}".format(
 			clogin_device_cfg, clogin_device_ip), shell=True)
 
 	except Exception as e:
