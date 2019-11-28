@@ -24,6 +24,7 @@ NETBOX_DEVICES = YAML_PARAMS['netbox']['url']['devices']
 NETBOX_INTERFACES = YAML_PARAMS['netbox']['url']['interfaces']
 NETBOX_SITES = YAML_PARAMS['netbox']['url']['sites']
 NETBOX_VLANS = YAML_PARAMS['netbox']['url']['vlans']
+NETBOX_CIRCUITS = YAML_PARAMS['netbox']['url']['circuits']
 
 
 def yes_or_no(question):
@@ -352,6 +353,20 @@ def netbox_get_sites():
 			return sites_list
 		else:
 			return False
+
+	except Exception as e:
+		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
+			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
+		print(msg)
+		sys.exit(1)
+
+
+def netbox_get_circuits():
+	try:
+		r = requests.get(url='{0}/{1}/?limit=0'.format(NETBOX_API, NETBOX_CIRCUITS),
+			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
+		r.close()
+		return r.json()
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
