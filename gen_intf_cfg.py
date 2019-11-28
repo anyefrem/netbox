@@ -2,6 +2,7 @@
 
 import sys
 import os
+import re
 import yaml
 import requests
 import argparse
@@ -77,6 +78,9 @@ def update_device_cfg(devices=None):
 				access_vlan = False
 				isp_l2_flag = False
 				isp_l3_flag = False
+				cid_isp = False
+				cid_svc = False
+				cid_rate = False
 				switch_flag = False
 				populate_flag = False
 				if interface['device']['id'] == NETBOX_DEVICE_ID:
@@ -92,7 +96,18 @@ def update_device_cfg(devices=None):
 					# and replicated from Netbox to a device.
 					# - 'upd_trunk' is when an trunk's allowed vlans are manually set in Netbox,
 					# and replicated from Netbox to a device.
-					elif check_intf_tags:
+					# - 'cid_XXX' to configure policy-map
+					elif len(check_intf_tags) > 0:
+						for intf_tag in check_intf_tags:
+							if 'cid' in intf_tag:
+								form_tag = re.sub('^cid_', '', intf_tag)
+								circuits = netbox_get_circuits()
+								for circuit in circuits['results']:
+									if circuit['cid'] == form_tag:
+										cid_isp = circuit['provider']['name']
+										cid_svc = circuit['type']['name']
+										# kbps -> bps
+										cid_rate = int(circuit['commit_rate'])*1000
 						for item in intf_tags:
 							if item in check_intf_tags:
 								if item == 'isp_l2':
@@ -121,6 +136,9 @@ def update_device_cfg(devices=None):
 						'isp_l3_flag': isp_l3_flag,
 						'mtu': mtu,
 						'mss': mss,
+						'cid_isp': cid_isp,
+						'cid_svc': cid_svc,
+						'cid_rate': cid_rate,
 						'switch_flag': switch_flag
 						})
 
@@ -218,7 +236,7 @@ def update_netbox_db(device=None):
 			cur_desc = interface['description']
 			data_to_mod = dict()
 			if interface['device']['id'] == NETBOX_DEVICE_ID:
-				# Pickup connected interfaces
+				# Pickup connected interface
 				if interface['is_connected']:
 					static_desc_dict = YAML_PARAMS['netbox']['static_intf_desc']
 					static_desc = static_desc_dict.get(interface['id'], None)
@@ -241,7 +259,7 @@ def update_netbox_db(device=None):
 						print('Nothing to change for interface {0} (id: {1}, exit: 1)'.format(
 							interface['name'], interface['id']))
 						continue
-				# Pickup interfaces with 802.1Q Mode: Access
+				# Pickup interface with 802.1Q Mode: Access
 				elif interface.get('mode', None):
 					if (interface['mode']['value'] == 100) and (interface.get('tags', None)):
 						# ..and tagged 'gw'
@@ -272,10 +290,40 @@ def update_netbox_db(device=None):
 						print('Nothing to change for interface {0} (id: {1}, exit: 5)'.format(
 							interface['name'], interface['id']))
 						continue
-				else:
-					print('Nothing to change for interface {0} (id: {1}, exit: 6)'.format(
-						interface['name'], interface['id']))
-					continue
+				# Check for specific tags
+				elif interface.get('tags', None):
+					new_desc = None
+					for intf_tag in interface['tags']:
+						# Pickup interface with Tag: cid_XXX
+						if 'cid' in intf_tag:
+							form_tag = re.sub('^cid_', '', intf_tag)
+							circuits = netbox_get_circuits()
+							for circuit in circuits['results']:
+								if circuit['cid'] == form_tag:
+									cid_isp = circuit['provider']['name']
+									cid_svc = circuit['type']['name']
+									new_desc = 'Transit: {0} [{1}] '.format(cid_isp, cid_svc)+'{'+form_tag +'}'
+					if new_desc is None:
+						print('Nothing to change for interface {0} (id: {1}, exit: 6)'.format(
+							interface['name'], interface['id']))
+						continue
+					else:
+						if cur_desc != new_desc:
+							choise = yes_or_no('Change interface {0} (id:{1}) description: \'{2}\' <---> \'{3}\''.format(
+								interface['name'], interface['id'], cur_desc, new_desc))
+							if choise:
+								data_to_mod['description'] = new_desc
+								netbox_modify_interface(netbox_intf_id=interface['id'], data=data_to_mod)
+							else:
+								continue
+						else:
+							print('Nothing to change for interface {0} (id: {1}, exit: 7)'.format(
+								interface['name'], interface['id']))
+							continue
+				# else:
+				# 	print('Nothing to change for interface {0} (id: {1}, exit: 7)'.format(
+				# 		interface['name'], interface['id']))
+				# 	continue
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
