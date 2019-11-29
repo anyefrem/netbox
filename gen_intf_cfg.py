@@ -237,7 +237,7 @@ def update_netbox_db(device=None):
 			data_to_mod = dict()
 			if interface['device']['id'] == NETBOX_DEVICE_ID:
 				# Pickup connected interface
-				if interface['is_connected']:
+				if interface['is_connected'] and interface['interface_connection']:
 					static_desc_dict = YAML_PARAMS['netbox']['static_intf_desc']
 					static_desc = static_desc_dict.get(interface['id'], None)
 					connected_to_dev = interface['interface_connection']['interface']['device']['name']
