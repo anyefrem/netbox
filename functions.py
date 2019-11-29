@@ -36,6 +36,24 @@ def yes_or_no(question):
             return False
 
 
+def format_rate(rate=None):
+	try:
+		if not rate:
+			raise Exception('No rate specified!')
+		n = 0
+		rate_labels = {0: 'Kbps', 1: 'Mbps', 2: 'Gbps'}
+		while rate > 1000:
+			rate //= 1000
+			n += 1
+		return '{0} {1}'.format(str(rate), rate_labels[n])
+
+	except Exception as e:
+		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
+			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
+		print(msg)
+		sys.exit(1)
+
+
 def generate_cfg_from_template(tpl_file, data_dict, trim_blocks_flag=True, lstrip_blocks_flag=False):
 	try:
 		tpl_dir = os.path.dirname(tpl_file)

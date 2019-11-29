@@ -302,7 +302,10 @@ def update_netbox_db(device=None):
 								if circuit['cid'] == form_tag:
 									cid_isp = circuit['provider']['name']
 									cid_svc = circuit['type']['name']
-									new_desc = 'Transit: {0} [{1}] '.format(cid_isp, cid_svc)+'{'+form_tag +'}'
+									cid_rate = int(circuit['commit_rate'])
+									form_cid_rate = format_rate(cid_rate)
+									new_desc = 'Transit: {0} [{1}] '.format(
+										cid_isp, form_cid_rate)+'{'+form_tag +'}'+' ({0})'.format(cid_svc)
 					if new_desc is None:
 						print('Nothing to change for interface {0} (id: {1}, exit: 6)'.format(
 							interface['name'], interface['id']))
