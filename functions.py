@@ -379,10 +379,14 @@ def netbox_get_sites():
 		sys.exit(1)
 
 
-def netbox_get_circuits():
+def netbox_get_circuits(circuit_url=None):
 	try:
-		r = requests.get(url='{0}/{1}/?limit=0'.format(NETBOX_API, NETBOX_CIRCUITS),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
+		if circuit_url:
+			r = requests.get(url=circuit_url,
+				headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
+		else:
+			r = requests.get(url='{0}/{1}/?limit=0'.format(NETBOX_API, NETBOX_CIRCUITS),
+				headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
 		r.close()
 		return r.json()
 
@@ -399,7 +403,7 @@ def netbox_modify_interface(netbox_intf_id=None, data=None):
 			raise Exception("No data is provided!")
 
 		r = requests.patch(url='{0}/{1}/{2}/'.format(NETBOX_API, NETBOX_INTERFACES, netbox_intf_id),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)}, data=data)
+			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)}, json=data)
 		r.close()
 		print('NetBox DB operation status code: {0}'.format(r.status_code))
 

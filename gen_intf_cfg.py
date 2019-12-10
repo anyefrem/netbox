@@ -85,7 +85,7 @@ def update_device_cfg(devices=None):
 				populate_flag = False
 				if interface['device']['id'] == NETBOX_DEVICE_ID:
 					# Pickup connected interface or LAG
-					if interface['is_connected'] or 'LAG' in interface['form_factor']['label']:
+					if interface['interface_connection'] or 'LAG' in interface['form_factor']['label']:
 						# print(interface['id'])
 						pvl = populate_vlan_list(interface)
 						native_vlan = pvl[0]
@@ -260,7 +260,7 @@ def update_netbox_db(device=None):
 							interface['name'], interface['id']))
 						continue
 				# Pickup interface with 802.1Q Mode: Access
-				elif interface.get('mode', None):
+				elif interface.get('mode', None) and interface['circuit_termination'] == 'null':
 					if (interface['mode']['value'] == 100) and (interface.get('tags', None)):
 						# ..and tagged 'gw'
 						if 'gw' in interface['tags']:
@@ -290,11 +290,34 @@ def update_netbox_db(device=None):
 						print('Nothing to change for interface {0} (id: {1}, exit: 5)'.format(
 							interface['name'], interface['id']))
 						continue
+				# Pickup router's interface with circuit termination
+				elif interface['circuit_termination'] and not netbox_check_if_switch:
+					circuit = netbox_get_circuits(interface['circuit_termination']['circuit']['url'])
+					cid_isp = circuit['provider']['name']
+					cid_svc = circuit['type']['name']
+					cid_rate = int(circuit['commit_rate'])
+					form_cid_rate = format_rate(cid_rate)
+					new_desc = 'Transit: {0} [{1}] '.format(
+									cid_isp, form_cid_rate)+'{'+circuit['cid'] +'}'+' ({0})'.format(cid_svc)
+					if cur_desc != new_desc:
+						choise = yes_or_no('Change interface {0} (id:{1}) description: \'{2}\' <---> \'{3}\''.format(
+							interface['name'], interface['id'], cur_desc, new_desc))
+						if choise:
+							if circuit['cid'] not in interface['tags']:
+								interface['tags'].append('cid_' + circuit['cid'])
+								data_to_mod['tags'] = interface['tags']
+							data_to_mod['description'] = new_desc
+							netbox_modify_interface(netbox_intf_id=interface['id'], data=data_to_mod)
+						continue
+					else:
+						print('Nothing to change for interface {0} (id: {1}, exit: 6)'.format(
+							interface['name'], interface['id']))
+						continue
 				# Check for specific tags
 				elif interface.get('tags', None):
 					new_desc = None
 					for intf_tag in interface['tags']:
-						# Pickup interface with Tag: cid_XXX
+						# Pickup interface with Tag: cid_XXX (but without direct circuit termination!)
 						if 'cid' in intf_tag:
 							form_tag = re.sub('^cid_', '', intf_tag)
 							circuits = netbox_get_circuits()
@@ -307,7 +330,7 @@ def update_netbox_db(device=None):
 									new_desc = 'Transit: {0} [{1}] '.format(
 										cid_isp, form_cid_rate)+'{'+form_tag +'}'+' ({0})'.format(cid_svc)
 					if new_desc is None:
-						print('Nothing to change for interface {0} (id: {1}, exit: 6)'.format(
+						print('Nothing to change for interface {0} (id: {1}, exit: 7)'.format(
 							interface['name'], interface['id']))
 						continue
 					else:
@@ -320,11 +343,11 @@ def update_netbox_db(device=None):
 							else:
 								continue
 						else:
-							print('Nothing to change for interface {0} (id: {1}, exit: 7)'.format(
+							print('Nothing to change for interface {0} (id: {1}, exit: 8)'.format(
 								interface['name'], interface['id']))
 							continue
 				# else:
-				# 	print('Nothing to change for interface {0} (id: {1}, exit: 7)'.format(
+				# 	print('Nothing to change for interface {0} (id: {1}, exit: 9)'.format(
 				# 		interface['name'], interface['id']))
 				# 	continue
 
