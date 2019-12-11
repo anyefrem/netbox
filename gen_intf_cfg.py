@@ -25,6 +25,7 @@ NETBOX_DEVICES = YAML_PARAMS['netbox']['url']['devices']
 NETBOX_INTERFACES = YAML_PARAMS['netbox']['url']['interfaces']
 NETBOX_SITES = YAML_PARAMS['netbox']['url']['sites']
 NETBOX_VLANS = YAML_PARAMS['netbox']['url']['vlans']
+NETBOX_CIRCUITS = YAML_PARAMS['netbox']['url']['circuits']
 
 
 def get_cmdline():
@@ -100,14 +101,12 @@ def update_device_cfg(devices=None):
 					elif len(check_intf_tags) > 0:
 						for intf_tag in check_intf_tags:
 							if 'cid' in intf_tag:
-								form_tag = re.sub('^cid_', '', intf_tag)
-								circuits = netbox_get_circuits()
-								for circuit in circuits['results']:
-									if circuit['cid'] == form_tag:
-										cid_isp = circuit['provider']['name']
-										cid_svc = circuit['type']['name']
-										# kbps -> bps
-										cid_rate = int(circuit['commit_rate'])*1000
+								cid_url = '{0}/{1}/{2}'.format(NETBOX_API, NETBOX_CIRCUITS, re.sub('^cid_', '', intf_tag))
+								circuit = netbox_get_circuits(cid_url)
+								cid_isp = circuit['provider']['name']
+								cid_svc = circuit['type']['name']
+								# kbps -> bps
+								cid_rate = int(circuit['commit_rate'])*1000
 						for item in intf_tags:
 							if item in check_intf_tags:
 								if item == 'isp_l2':
@@ -260,7 +259,7 @@ def update_netbox_db(device=None):
 							interface['name'], interface['id']))
 						continue
 				# Pickup interface with 802.1Q Mode: Access
-				elif interface.get('mode', None) and interface['circuit_termination'] == 'null':
+				elif interface.get('mode', None) and interface['circuit_termination'] is None and 'gw' in interface['tags']:
 					if (interface['mode']['value'] == 100) and (interface.get('tags', None)):
 						# ..and tagged 'gw'
 						if 'gw' in interface['tags']:
@@ -291,7 +290,7 @@ def update_netbox_db(device=None):
 							interface['name'], interface['id']))
 						continue
 				# Pickup router's interface with circuit termination
-				elif interface['circuit_termination'] and not netbox_check_if_switch:
+				elif interface['circuit_termination'] and not netbox_check_if_switch(device):
 					circuit = netbox_get_circuits(interface['circuit_termination']['circuit']['url'])
 					cid_isp = circuit['provider']['name']
 					cid_svc = circuit['type']['name']
@@ -303,8 +302,8 @@ def update_netbox_db(device=None):
 						choise = yes_or_no('Change interface {0} (id:{1}) description: \'{2}\' <---> \'{3}\''.format(
 							interface['name'], interface['id'], cur_desc, new_desc))
 						if choise:
-							if circuit['cid'] not in interface['tags']:
-								interface['tags'].append('cid_' + circuit['cid'])
+							if 'cid_' + str(circuit['id']) not in interface['tags']:
+								interface['tags'].append('cid_' + str(circuit['id']))
 								data_to_mod['tags'] = interface['tags']
 							data_to_mod['description'] = new_desc
 							netbox_modify_interface(netbox_intf_id=interface['id'], data=data_to_mod)
@@ -319,16 +318,15 @@ def update_netbox_db(device=None):
 					for intf_tag in interface['tags']:
 						# Pickup interface with Tag: cid_XXX (but without direct circuit termination!)
 						if 'cid' in intf_tag:
-							form_tag = re.sub('^cid_', '', intf_tag)
-							circuits = netbox_get_circuits()
-							for circuit in circuits['results']:
-								if circuit['cid'] == form_tag:
-									cid_isp = circuit['provider']['name']
-									cid_svc = circuit['type']['name']
-									cid_rate = int(circuit['commit_rate'])
-									form_cid_rate = format_rate(cid_rate)
-									new_desc = 'Transit: {0} [{1}] '.format(
-										cid_isp, form_cid_rate)+'{'+form_tag +'}'+' ({0})'.format(cid_svc)
+							cid_url = '{0}/{1}/{2}'.format(NETBOX_API, NETBOX_CIRCUITS, re.sub('^cid_', '', intf_tag))
+							circuit = netbox_get_circuits(cid_url)
+							cid = circuit['cid']
+							cid_isp = circuit['provider']['name']
+							cid_svc = circuit['type']['name']
+							cid_rate = int(circuit['commit_rate'])
+							form_cid_rate = format_rate(cid_rate)
+							new_desc = 'Transit: {0} [{1}] '.format(
+								cid_isp, form_cid_rate)+'{'+cid +'}'+' ({0})'.format(cid_svc)
 					if new_desc is None:
 						print('Nothing to change for interface {0} (id: {1}, exit: 7)'.format(
 							interface['name'], interface['id']))
