@@ -1,8 +1,8 @@
 {% for intf in interfaces %}
-{% if intf.isp_l3_flag and intf.cid_svc and intf.cid_isp and intf.cid_rate %}
-policy-map SHAPER-{{ intf.cid_svc }}-{{ intf.cid_isp }}
+{% if intf.isp_l3_flag and intf.circuit_svc and intf.circuit_isp and intf.circuit_rate %}
+policy-map SHAPER-{{ intf.circuit_svc }}-{{ intf.circuit_isp }}
  class class-default
-  shape average {{ intf.cid_rate }}
+  shape average {{ intf.circuit_rate }}
 !
 {% endif %}
 interface {{ intf.name }}
@@ -34,8 +34,8 @@ interface {{ intf.name }}
  no ip redirects
  no ip unreachables
  no ip proxy-arp
-{% if intf.cid_svc and intf.cid_isp and intf.cid_rate%}
- service-policy output SHAPER-{{ intf.cid_svc }}-{{ intf.cid_isp }}
+{% if intf.circuit_svc and intf.circuit_isp and intf.circuit_rate%}
+ service-policy output SHAPER-{{ intf.circuit_svc }}-{{ intf.circuit_isp }}
 {%- endif %} 
 {% endif %}
 !

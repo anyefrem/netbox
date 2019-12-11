@@ -79,9 +79,9 @@ def update_device_cfg(devices=None):
 				access_vlan = False
 				isp_l2_flag = False
 				isp_l3_flag = False
-				cid_isp = False
-				cid_svc = False
-				cid_rate = False
+				circuit_isp = False
+				circuit_svc = False
+				circuit_rate = False
 				switch_flag = False
 				populate_flag = False
 				if interface['device']['id'] == NETBOX_DEVICE_ID:
@@ -103,10 +103,10 @@ def update_device_cfg(devices=None):
 							if 'cid' in intf_tag:
 								cid_url = '{0}/{1}/{2}'.format(NETBOX_API, NETBOX_CIRCUITS, re.sub('^cid_', '', intf_tag))
 								circuit = netbox_get_circuits(cid_url)
-								cid_isp = circuit['provider']['name']
-								cid_svc = circuit['type']['name']
+								circuit_isp = circuit['provider']['name']
+								circuit_svc = circuit['type']['name']
 								# kbps -> bps
-								cid_rate = int(circuit['commit_rate'])*1000
+								circuit_rate = int(circuit['commit_rate'])*1000
 						for item in intf_tags:
 							if item in check_intf_tags:
 								if item == 'isp_l2':
@@ -135,9 +135,9 @@ def update_device_cfg(devices=None):
 						'isp_l3_flag': isp_l3_flag,
 						'mtu': mtu,
 						'mss': mss,
-						'cid_isp': cid_isp,
-						'cid_svc': cid_svc,
-						'cid_rate': cid_rate,
+						'circuit_isp': circuit_isp,
+						'circuit_svc': circuit_svc,
+						'circuit_rate': circuit_rate,
 						'switch_flag': switch_flag
 						})
 
@@ -292,12 +292,12 @@ def update_netbox_db(device=None):
 				# Pickup router's interface with circuit termination
 				elif interface['circuit_termination'] and not netbox_check_if_switch(device):
 					circuit = netbox_get_circuits(interface['circuit_termination']['circuit']['url'])
-					cid_isp = circuit['provider']['name']
-					cid_svc = circuit['type']['name']
-					cid_rate = int(circuit['commit_rate'])
-					form_cid_rate = format_rate(cid_rate)
+					circuit_isp = circuit['provider']['name']
+					circuit_svc = circuit['type']['name']
+					circuit_rate = int(circuit['commit_rate'])
+					form_circuit_rate = format_rate(circuit_rate)
 					new_desc = 'Transit: {0} [{1}] '.format(
-									cid_isp, form_cid_rate)+'{'+circuit['cid'] +'}'+' ({0})'.format(cid_svc)
+									circuit_isp, form_circuit_rate)+'{'+circuit['cid'] +'}'+' ({0})'.format(circuit_svc)
 					if cur_desc != new_desc:
 						choise = yes_or_no('Change interface {0} (id:{1}) description: \'{2}\' <---> \'{3}\''.format(
 							interface['name'], interface['id'], cur_desc, new_desc))
@@ -320,13 +320,13 @@ def update_netbox_db(device=None):
 						if 'cid' in intf_tag:
 							cid_url = '{0}/{1}/{2}'.format(NETBOX_API, NETBOX_CIRCUITS, re.sub('^cid_', '', intf_tag))
 							circuit = netbox_get_circuits(cid_url)
-							cid = circuit['cid']
-							cid_isp = circuit['provider']['name']
-							cid_svc = circuit['type']['name']
-							cid_rate = int(circuit['commit_rate'])
-							form_cid_rate = format_rate(cid_rate)
+							circuit_cid = circuit['cid']
+							circuit_isp = circuit['provider']['name']
+							circuit_svc = circuit['type']['name']
+							circuit_rate = int(circuit['commit_rate'])
+							form_circuit_rate = format_rate(circuit_rate)
 							new_desc = 'Transit: {0} [{1}] '.format(
-								cid_isp, form_cid_rate)+'{'+cid +'}'+' ({0})'.format(cid_svc)
+								circuit_isp, form_circuit_rate)+'{'+circuit_cid +'}'+' ({0})'.format(circuit_svc)
 					if new_desc is None:
 						print('Nothing to change for interface {0} (id: {1}, exit: 7)'.format(
 							interface['name'], interface['id']))
