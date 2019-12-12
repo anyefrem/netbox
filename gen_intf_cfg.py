@@ -31,19 +31,22 @@ NETBOX_CIRCUITS = YAML_PARAMS['netbox']['url']['circuits']
 def get_cmdline():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-i1', dest='upd_dev', type=str,
-							help='update interface descriptions on a single device',
+							help='update interfaces description on a single device. specify a DEVICE name from netbox.',
 							required=False)
-	parser.add_argument('-i2', dest='upd_site_dev', type=str,
-							help='update interface descriptions across a whole site',
+	parser.add_argument('-i2', dest='upd_site_devs', type=str,
+							help='update interfaces description across a whole site. specify a SITE name from netbox.',
 							required=False)
-	parser.add_argument('-i3', dest='upd_dev_db', type=str,
-							help='update interface descriptions of a single device in netbox',
+	parser.add_argument('-i3', dest='upd_db_dev', type=str,
+							help='update interfaces description of a single device in the netbox db. specify a DEVICE name from netbox.',
 							required=False)
 	parser.add_argument('-v1', dest='upd_dev_vlans', type=str,
-							help='update vlans on a single device',
+							help='update vlans on a single device. specify a DEVICE name from netbox',
 							required=False)
 	parser.add_argument('-v3', dest='upd_site_vlans', type=str,
-							help='update vlans across a whole site',
+							help='update vlans across a whole site. specify a SITE name from netbox.',
+							required=False)
+	parser.add_argument('-c', dest='site_circuits', type=str, nargs='?', const='all',
+							help='print circuits id. specify TYPE (separated by comma if many) or leave blank for ALL.',
 							required=False)
 	arguments = parser.parse_args()
 	return arguments
@@ -356,30 +359,59 @@ def update_netbox_db(device=None):
 		sys.exit(1)
 
 
+def circuits_info(types=None):
+	try:
+		if not types:
+			raise Exception('No types specified!')
+		c_info = netbox_get_circuits()
+		for circuit in c_info['results']:
+			if circuit['type']['slug'] in types or types == 'all':
+				print('isp: {0}, type: {1}, cid: {2}, id: {3}'.format(
+					circuit['provider']['name'], circuit['type']['slug'], circuit['cid'], circuit['id']))
+
+	except Exception as e:
+		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
+			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
+		print(msg)
+		sys.exit(1)
+
+
 def main():
 	try:
 		ARGS = get_cmdline()
 		dev_list = list()
+
 		if ARGS.upd_dev:
 			dev_list.append(ARGS.upd_dev)
 			update_device_cfg(devices=dev_list)
+
 		elif ARGS.upd_dev_vlans:
 			dev_list.append(ARGS.upd_dev_vlans)
 			update_device_vlans(devices=dev_list)
-		elif ARGS.upd_site_dev:
-			if ARGS.upd_site_dev.lower() in netbox_get_sites():
-				dev_list = netbox_get_devices(netbox_site=ARGS.upd_site_dev)
+
+		elif ARGS.upd_site_devs:
+			if ARGS.upd_site_devs.lower() in netbox_get_sites():
+				dev_list = netbox_get_devices(netbox_site=ARGS.upd_site_devs)
 				update_device_cfg(devices=dev_list)
 			else:
-				raise Exception('Site \'{}\' not found!'.format(ARGS.upd_site_dev))
+				raise Exception('Site \'{}\' not found!'.format(ARGS.upd_site_devs))
+
 		elif ARGS.upd_site_vlans:
 			if ARGS.upd_site_vlans.lower() in netbox_get_sites():
 				dev_list = netbox_get_devices(netbox_site=ARGS.upd_site_vlans)
 				update_device_vlans(devices=dev_list)
 			else:
 				raise Exception('Site \'{}\' not found!'.format(ARGS.upd_site_dev))
-		elif ARGS.upd_dev_db:
-			update_netbox_db(device=ARGS.upd_dev_db)
+
+		elif ARGS.upd_db_dev:
+			update_netbox_db(device=ARGS.upd_db_dev)
+
+		elif ARGS.site_circuits:
+			if ARGS.site_circuits is not 'all':
+				types = ARGS.site_circuits.split(',')
+				circuits_info(types)
+			else:
+				circuits_info(ARGS.site_circuits)
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
