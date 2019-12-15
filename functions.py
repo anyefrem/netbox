@@ -42,7 +42,7 @@ def format_rate(rate=None):
 			raise Exception('No rate specified!')
 		n = 0
 		rate_labels = {0: 'Kbps', 1: 'Mbps', 2: 'Gbps'}
-		while rate > 1000:
+		while rate >= 1000:
 			rate //= 1000
 			n += 1
 		return '{0} {1}'.format(str(rate), rate_labels[n])
