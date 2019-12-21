@@ -27,8 +27,10 @@ interface {{ intf.name }}
  spanning-tree bpdufilter enable
 {% endif %}
  no cdp enable
+{% if intf.lldp_flag %}
  no lldp transmit
  no lldp receive
+{% endif %}
 {% endif %}
 {% if intf.isp_l3_flag %}
  no ip redirects
