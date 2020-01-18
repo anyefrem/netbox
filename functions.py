@@ -22,12 +22,7 @@ else:
 
 NETBOX_URL = YAML_PARAMS['netbox']['url']
 NETBOX_TOKEN = YAML_PARAMS['netbox']['token']
-NETBOX_DEVICES = YAML_PARAMS['netbox']['inv']['devices']
-NETBOX_INTERFACES = YAML_PARAMS['netbox']['inv']['interfaces']
-NETBOX_SITES = YAML_PARAMS['netbox']['inv']['sites']
-NETBOX_VLANS = YAML_PARAMS['netbox']['inv']['vlans']
-NETBOX_CIRCUITS = YAML_PARAMS['netbox']['inv']['circuits']
-NETBOX_API = pynetbox.api(NETBOX_URL, token='45243879f01dbf9b61a33468823864937497c855')
+NETBOX_API = pynetbox.api(NETBOX_URL, token=NETBOX_TOKEN)
 
 
 def yes_or_no(question):
@@ -187,135 +182,6 @@ def load_cfg(dst_device, dst_device_ip, src_config_dict, j2_tpl):
 		sys.exit(1)
 
 
-def netbox_get_vlans(netbox_site_id=None):
-	try:
-		if not netbox_site_id:
-			raise Exception('No site id specified!')
-
-		r = requests.get(url='{0}/api/{1}?limit=0'.format(NETBOX_URL, NETBOX_VLANS),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-		r.close()
-		data = r.json()
-
-		if data['results']:
-			vlan_list = list()
-			for vlan in data['results']:
-				if vlan.get('site', None):
-					if vlan['site']['id'] == netbox_site_id:
-						if vlan['tags']:
-							vlan_action = vlan['tags'][0]
-						else:
-							vlan_action = None
-						vlan_list.append({
-							'vlan_id': vlan['id'],
-							'vlan_vid': vlan['vid'],
-							'vlan_name': vlan['name'],
-							'action': vlan_action
-							})
-			return vlan_list
-		else:
-			raise Exception('Site with id \'{0}\' not found in the netbox!'.format(netbox_site_id))
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_get_interfaces():
-	try:
-		r = requests.get(url='{0}/api/{1}/?limit=0'.format(NETBOX_URL, NETBOX_INTERFACES),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-		r.close()
-		return r.json()
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_get_sites():
-	try:
-		r = requests.get(url='{0}/api/{1}/?limit=0'.format(NETBOX_URL, NETBOX_SITES),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-		r.close()
-		data = r.json()
-
-		if data['results']:
-			sites_list = list()
-			for site in data['results']:
-				sites_list.append(site['name'].lower())
-			return sites_list
-		else:
-			return False
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_get_circuits(circuit_url=None):
-	try:
-		if circuit_url:
-			r = requests.get(url=circuit_url,
-				headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-		else:
-			r = requests.get(url='{0}/api/{1}/?limit=0'.format(NETBOX_URL, NETBOX_CIRCUITS),
-				headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-		r.close()
-		return r.json()
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_modify_interface(netbox_intf_id=None, data=None):
-	try:
-		if (not netbox_intf_id) or (not data):
-			raise Exception("No data is provided!")
-
-		r = requests.patch(url='{0}/api/{1}/{2}/'.format(NETBOX_URL, NETBOX_INTERFACES, netbox_intf_id),
-			headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)}, json=data)
-		r.close()
-		print('NetBox DB operation status code: {0}'.format(r.status_code))
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
-def netbox_modify_vlan(netbox_vlan_id=None, netbox_vlan_action=None):
-	try:
-		if (not netbox_vlan_id) or (not netbox_vlan_action):
-			raise Exception("No data provided!")
-
-		if netbox_vlan_action == 'vlan_add':
-			r = requests.patch(url='{0}/api/{1}/{2}/'.format(NETBOX_URL, NETBOX_VLANS, netbox_vlan_id),
-				headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)}, json={'tags':['vlan_ok']})
-		elif netbox_vlan_action == 'vlan_del':
-			r = requests.delete(url='{0}/api/{1}/{2}/'.format(NETBOX_URL, NETBOX_VLANS, netbox_vlan_id),
-				headers={'Authorization': 'Token {0}'.format(NETBOX_TOKEN)})
-
-		r.close()
-		print('NetBox DB operation status code: {0}'.format(r.status_code))
-
-	except Exception as e:
-		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
-			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
-		print(msg)
-		sys.exit(1)
-
-
 def populate_vlan_list(netbox_interface=None):
 	try:
 		if not netbox_interface:
@@ -328,8 +194,7 @@ def populate_vlan_list(netbox_interface=None):
 		if netbox_interface.mode:
 			if netbox_interface.mode.value == 200:
 				if netbox_interface.untagged_vlan:
-					# Add native vlan to the vlan list and
-					# set 'native_vlan' in case when native vlan id is not '1'
+					# Add native vlan to the vlan list and set 'native_vlan' in case when native vlan id is not '1'
 					vlan_list.append(netbox_interface.untagged_vlan.vid)
 					if netbox_interface.untagged_vlan.vid != 1:
 						native_vlan = netbox_interface.untagged_vlan.vid

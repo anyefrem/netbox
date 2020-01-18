@@ -1,12 +1,6 @@
 netbox:
   url: http://netbox.localdomain
   token: 
-  inv:
-    devices: dcim/devices
-    interfaces: dcim/interfaces
-    sites: dcim/sites
-    vlans: ipam/vlans
-    circuits: circuits/circuits
   static_intf_desc:
     999999999: 'Foo int desc'
 napalm:
