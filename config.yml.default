@@ -1,18 +1,17 @@
 netbox:
-  api: http://netbox.localdomain/api
+  url: http://netbox.localdomain
   token: 
-  url:
-    devices: dcim/devices
-    interfaces: dcim/interfaces
-    sites: dcim/sites
-    vlans: ipam/vlans
-    circuits: circuits/circuits
   static_intf_desc:
     999999999: 'Foo int desc'
 napalm:
   default:
     driver: ios
     username: 
-    password: 
+    password:
+    timeout: 300
 telnet:
   - rtr1
+lldp_incompatible_slugs:
+  - "871"
+  - "1841"
+  - "881-srst"
