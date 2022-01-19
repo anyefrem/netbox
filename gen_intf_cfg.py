@@ -14,7 +14,7 @@ from functions import *
 
 if os.path.exists('./config.yml'):
 	with open('./config.yml') as f:
-		YAML_PARAMS = yaml.load(f)
+		YAML_PARAMS = yaml.safe_load(f)
 		f.close()
 else:
 	print('config.yml not found!')
@@ -272,15 +272,16 @@ def update_netbox_db(device=None):
 			NETBOX_DEVICE_INTFS = NETBOX_API.dcim.interfaces.filter(device=device)
 			print('Found {0} id: {1}\n'.format(device, NETBOX_DEVICE_ID))
 
+		static_desc_dict = YAML_PARAMS['netbox']['static_intf_desc']
+
 		for interface in NETBOX_DEVICE_INTFS:
 			cur_desc = interface.description
+			static_desc = static_desc_dict.get(interface.id, None)
 			data_to_mod = dict()
 			#
 			# Pickup interface connected to another device (but not circuit termination)
 			#
 			if interface.is_connected and interface.interface_connection:
-				static_desc_dict = YAML_PARAMS['netbox']['static_intf_desc']
-				static_desc = static_desc_dict.get(interface.id, None)
 				connected_to_dev = interface.interface_connection.interface.device.name
 				connected_to_intf = interface.interface_connection.interface.name
 				new_desc = 'Core: {0} {1}'.format(connected_to_dev.lower(), connected_to_intf)
@@ -315,15 +316,20 @@ def update_netbox_db(device=None):
 							print('Nothing to change for interface {0} (id: {1}, exit: 2)'.format(
 								interface.name, interface.id))
 							continue
-						if cur_desc != new_desc:
+						if static_desc and (cur_desc != static_desc):
 							choise = yes_or_no('Change interface {0} (id:{1}) description: \'{2}\' <---> \'{3}\''.format(
+								interface.name, interface.id, cur_desc, static_desc))
+							if choise:
+								data_to_mod['description'] = static_desc
+								oper = interface.update(data_to_mod)
+								print('Operation returned status: {0}'.format(oper))
+						elif (not static_desc) and (cur_desc != new_desc):
+							choise = yes_or_no('Change interface {0} (id: {1}) description: \'{2}\' <---> \'{3}\''.format(
 								interface.name, interface.id, cur_desc, new_desc))
 							if choise:
 								data_to_mod['description'] = new_desc
 								oper = interface.update(data_to_mod)
 								print('Operation returned status: {0}'.format(oper))
-							else:
-								continue
 						else:
 							print('Nothing to change for interface {0} (id: {1}, exit: 3)'.format(
 								interface.name, interface.id))
@@ -462,7 +468,7 @@ def main():
 			update_netbox_db(device=ARGS.upd_db_dev)
 
 		elif ARGS.site_circuits:
-			if ARGS.site_circuits is not 'all':
+			if ARGS.site_circuits != 'all':
 				types = ARGS.site_circuits.split(',')
 				circuits_info(types)
 			else:
