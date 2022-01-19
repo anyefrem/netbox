@@ -14,7 +14,7 @@ from napalm import get_network_driver
 
 if os.path.exists('./config.yml'):
 	with open('./config.yml') as f:
-		YAML_PARAMS = yaml.load(f)
+		YAML_PARAMS = yaml.safe_load(f)
 		f.close()
 else:
 	print('config.yml not found!')
