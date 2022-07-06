@@ -14,7 +14,7 @@ importlib-resources==3.2.1
 Jinja2==2.11.3
 junos-eznc==2.2.1
 loguru==0.5.3
-lxml==4.7.1
+lxml==4.9.1
 MarkupSafe==1.1.1
 napalm==2.5.0
 ncclient==0.6.12
