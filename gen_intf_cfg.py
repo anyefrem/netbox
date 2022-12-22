@@ -1,29 +1,29 @@
-#!/usr/bin/env python
-
 import sys
 import os
 import re
-import yaml
-import requests
+# import yaml
+# import requests
 import argparse
-import pynetbox
+# import pynetbox
+
 from pprint import pprint
+
 # Local functions.py
 from functions import *
 
 
-if os.path.exists('./config.yml'):
-	with open('./config.yml') as f:
-		YAML_PARAMS = yaml.safe_load(f)
-		f.close()
-else:
-	print('config.yml not found!')
-	sys.exit(1)
+# if os.path.exists('./config.yml'):
+# 	with open('./config.yml') as f:
+# 		YAML_PARAMS = yaml.safe_load(f)
+# 		f.close()
+# else:
+# 	print('config.yml not found!')
+# 	sys.exit(1)
 
-NETBOX_URL = YAML_PARAMS['netbox']['url']
-NETBOX_TOKEN = YAML_PARAMS['netbox']['token']
-NETBOX_API = pynetbox.api(NETBOX_URL, token=NETBOX_TOKEN)
-LLDP_INCOMPATIBLE_SLUGS = YAML_PARAMS['lldp_incompatible_slugs']
+# NETBOX_URL = YAML_PARAMS['netbox']['url']
+# NETBOX_TOKEN = YAML_PARAMS['netbox']['token']
+# NETBOX_API = pynetbox.api(NETBOX_URL, token=NETBOX_TOKEN)
+# LLDP_INCOMPATIBLE_SLUGS = YAML_PARAMS['lldp_incompatible_slugs']
 
 
 def get_cmdline():
@@ -41,8 +41,14 @@ def get_cmdline():
 	parser.add_argument('-v1', dest='upd_dev_vlans', type=str,
 							help='update vlans on a single device. specify a single DEVICE name from netbox, or comma separated LIST.',
 							required=False)
-	parser.add_argument('-v3', dest='upd_site_vlans', type=str,
+	parser.add_argument('-v2', dest='upd_site_vlans', type=str,
 							help='update vlans across a whole site. specify a SITE name from netbox, or comma separated LIST.',
+							required=False)
+	parser.add_argument('-v3', dest='upd_dev_vlans_desc', type=str,
+							help='update vlans description on a single device. specify a single DEVICE name from netbox, or comma separated LIST.',
+							required=False)
+	parser.add_argument('-v4', dest='upd_site_vlans_desc', type=str,
+							help='update vlans description across a whole site. specify a SITE name from netbox, or comma separated LIST.',
 							required=False)
 	parser.add_argument('-c', dest='site_circuits', type=str, nargs='?', const='all',
 							help='print circuits id. specify TYPE (separated by comma if many) or leave blank for ALL.',
@@ -69,7 +75,12 @@ def update_device_cfg(devices=None):
 				NETBOX_DEVICE_IP = str(NETBOX_DEVICE_VIEW.primary_ip4).split('/')[0]
 				NETBOX_DEVICE_MODEL = str(NETBOX_DEVICE_VIEW.device_type.slug)
 				NETBOX_DEVICE_INTFS = NETBOX_API.dcim.interfaces.filter(device=device)
+				NETBOX_DEVICE_TAGS = NETBOX_DEVICE_VIEW.tags
 				print('Found {0} id: {1}\n'.format(device, NETBOX_DEVICE_ID))
+
+			if 'down' in NETBOX_DEVICE_TAGS:
+				print('{0} is tagged as DOWN, skipping..'.format(device))
+				continue
 
 			config_dict = dict()
 			intf_list = list()
@@ -194,9 +205,13 @@ def update_device_vlans(devices=None):
 			else:
 				NETBOX_DEVICE_VIEW = NETBOX_API.dcim.devices.get(name=device)
 				NETBOX_DEVICE_IP = str(NETBOX_DEVICE_VIEW.primary_ip4).split('/')[0]
+				NETBOX_DEVICE_TAGS = NETBOX_DEVICE_VIEW.tags
 
 			if 'switch' not in NETBOX_DEVICE_VIEW.device_role.slug:
 				print('Skipping {0}'.format(device))
+				continue
+			elif 'down' in NETBOX_DEVICE_TAGS:
+				print('{0} is tagged as DOWN, skipping..'.format(device))
 				continue
 			else:
 				sw_count += 1
@@ -239,7 +254,7 @@ def update_device_vlans(devices=None):
 				if load_cfg(dst_device=device, dst_device_ip=NETBOX_DEVICE_IP, src_config_dict=config_dict, j2_tpl='./out/tpl_vlan.j2'):
 					ok_count += 1
 			else:
-				print('No vlans need to be modified!')
+				print('{0}: no vlans need to be modified!'.format(device))
 
 		if (sw_count > 0) and (ok_count == sw_count):
 			for item in vlans_add:
@@ -250,6 +265,59 @@ def update_device_vlans(devices=None):
 				vlan = NETBOX_API.ipam.vlans.get(item['id'])
 				oper = vlan.delete()
 				print('Operation returned status: {0}'.format(oper))
+
+	except Exception as e:
+		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
+			os.path.basename(__file__), sys._getframe().f_code.co_name, sys.exc_info()[-1].tb_lineno, e)
+		print(msg)
+		sys.exit(1)
+
+
+def update_device_vlans_desc(devices=None):
+	try:
+		if not devices:
+			raise Exception('No device specified!')
+
+		for item in devices:
+
+			device = str(item)
+
+			if NETBOX_API.dcim.devices.get(name=device) is None:
+				print('{0} not found in the netbox!'.format(device))
+				if device == devices[-1]:
+					sys.exit(1)
+				else:
+					continue
+			else:
+				NETBOX_DEVICE_VIEW = NETBOX_API.dcim.devices.get(name=device)
+				NETBOX_DEVICE_IP = str(NETBOX_DEVICE_VIEW.primary_ip4).split('/')[0]
+				NETBOX_DEVICE_TAGS = NETBOX_DEVICE_VIEW.tags
+
+			if 'switch' not in NETBOX_DEVICE_VIEW.device_role.slug:
+				print('Skipping {0}'.format(device))
+				continue
+			elif 'down' in NETBOX_DEVICE_TAGS:
+				print('{0} is tagged as DOWN, skipping..'.format(device))
+				continue
+			else:
+				vlans_add = list()
+				config_dict = dict()
+
+			site_vlans = NETBOX_API.ipam.vlans.filter(site_id=NETBOX_DEVICE_VIEW.site.id)
+
+			for vlan in site_vlans:
+				vlans_add.append({
+					'vid': vlan.vid,
+					'name': vlan.name
+					})
+
+			if vlans_add:
+				config_dict['vlans_add'] = vlans_add
+			else:
+				config_dict['vlans_add'] = None
+
+			if config_dict:
+				load_cfg(dst_device=device, dst_device_ip=NETBOX_DEVICE_IP, src_config_dict=config_dict, j2_tpl='./out/tpl_vlan.j2')
 
 	except Exception as e:
 		msg = '\n\n\n*** Error in \'{0}___{1}\' function (line {2}): {3} ***\n\n\n'.format(
@@ -311,7 +379,7 @@ def update_netbox_db(device=None):
 					# ..and tagged 'gw'
 					if 'gw' in interface.tags:
 						if interface.untagged_vlan:
-							new_desc = 'Gateway: VLAN {0}'.format(interface.untagged_vlan.vid)
+							new_desc = 'Gateway: VLAN {0} ({1})'.format(interface.untagged_vlan.vid, interface.untagged_vlan)
 						else:
 							print('Nothing to change for interface {0} (id: {1}, exit: 2)'.format(
 								interface.name, interface.id))
@@ -440,9 +508,13 @@ def main():
 			dev_list = ARGS.upd_dev.split(',')
 			update_device_cfg(devices=dev_list)
 
-		elif ARGS.upd_dev_vlans:
-			dev_list = ARGS.upd_dev_vlans.split(',')
-			update_device_vlans(devices=dev_list)
+		elif ARGS.upd_dev_vlans or ARGS.upd_dev_vlans_desc:
+			if ARGS.upd_dev_vlans:
+				dev_list = ARGS.upd_dev_vlans.split(',')
+				update_device_vlans(devices=dev_list)
+			else:
+				dev_list = ARGS.upd_dev_vlans_desc.split(',')
+				update_device_vlans_desc(devices=dev_list)
 
 		elif ARGS.upd_site_devs:
 			site_list = ARGS.upd_site_devs.split(',')
@@ -454,13 +526,19 @@ def main():
 				else:
 					raise Exception('Site \'{}\' not found!'.format(ARGS.upd_site_devs))
 
-		elif ARGS.upd_site_vlans:
-			site_list = ARGS.upd_site_vlans.split(',')
+		elif ARGS.upd_site_vlans or ARGS.upd_site_vlans_desc:
+			if ARGS.upd_site_vlans:
+				site_list = ARGS.upd_site_vlans.split(',')
+			else:
+				site_list = ARGS.upd_site_vlans_desc.split(',')
 			for site in site_list:
 				if NETBOX_API.dcim.sites.get(name=site) or NETBOX_API.dcim.sites.get(name=site.upper()) \
 					or NETBOX_API.dcim.sites.get(name=site.lower()):
 					dev_list = NETBOX_API.dcim.devices.filter(site=site.lower())
-					update_device_vlans(devices=dev_list)
+					if ARGS.upd_site_vlans:
+						update_device_vlans(devices=dev_list)
+					else:
+						update_device_vlans_desc(devices=dev_list)
 				else:
 					raise Exception('Site \'{}\' not found!'.format(ARGS.upd_site_vlans))
 

@@ -1,28 +1,28 @@
-#!/usr/bin/env python
-
 import sys
 import os
 import subprocess
-import yaml
-import json
-import requests
-import pynetbox
+# import yaml
+# import json
+# import requests
+# import pynetbox
+
 from pprint import pprint
 from jinja2 import Environment, FileSystemLoader
 from napalm import get_network_driver
 
+from common import *
 
-if os.path.exists('./config.yml'):
-	with open('./config.yml') as f:
-		YAML_PARAMS = yaml.safe_load(f)
-		f.close()
-else:
-	print('config.yml not found!')
-	sys.exit(1)
+# if os.path.exists('./config.yml'):
+# 	with open('./config.yml') as f:
+# 		YAML_PARAMS = yaml.safe_load(f)
+# 		f.close()
+# else:
+# 	print('config.yml not found!')
+# 	sys.exit(1)
 
-NETBOX_URL = YAML_PARAMS['netbox']['url']
-NETBOX_TOKEN = YAML_PARAMS['netbox']['token']
-NETBOX_API = pynetbox.api(NETBOX_URL, token=NETBOX_TOKEN)
+# NETBOX_URL = YAML_PARAMS['netbox']['url']
+# NETBOX_TOKEN = YAML_PARAMS['netbox']['token']
+# NETBOX_API = pynetbox.api(NETBOX_URL, token=NETBOX_TOKEN)
 
 
 def yes_or_no(question):
@@ -126,8 +126,8 @@ def load_cfg_with_napalm(napalm_device, napalm_device_ip):
 			print('*****')
 			return True
 		if yes_or_no('ARE YOU STILL SURE?'):
-			 device.commit_config()
-			 return True
+			device.commit_config()
+			return True
 		else:
 			return False
 
